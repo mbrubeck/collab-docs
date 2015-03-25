@@ -124,3 +124,33 @@ legitimate bugs. (We begin with such a case.)
     but it probably would have been much harder to diagnose
     since the panic would have happened at some arbitrary
     point later in the control flow.
+
+ 5. Servo: test for lowercase ASCII chars
+
+    Servo contained the following [code][ascii-before] to test whether a char
+    `ch` is in the range `['a', 'z']`.
+
+    ```
+    ch as u8 - b'a' < 26
+    ```
+
+    This is incorrect because the conversion to `u8` loses the high bits, so
+    characters like `'\u{161}'` test positive as lowercase ASCII letters
+    (because `'\u{161}' as u8` == `0x61` == `'a'`).
+
+    It's also hard to reason about because the subtraction may overflow,
+    though in this particular case the overflow does not lead to any bugs.
+
+    This was [fixed][ascii-after] by changing the test to:
+
+    ```
+    ch >= 'a' && ch <= 'z'
+    ```
+
+    On closer inspection, overflow checking does not actually prevent the bug
+    here, since it panics on the subtraction overflow (not a "real" bug) but
+    not the conversion overflow.  But it caused us to rewrite this buggy code
+    and notice the real bug.
+
+[ascii-before]: https://github.com/servo/servo/blob/08ac0766eda2340008642e86799ea2cb1ef6e59f/components/script/dom/htmlelement.rs#L162-L164
+[ascii-after]: https://github.com/servo/servo/blob/06d3fc719c58c8a798f8a8fc827ac47385b61c40/components/script/dom/htmlelement.rs#L162-L164
